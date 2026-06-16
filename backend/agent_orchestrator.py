@@ -157,11 +157,31 @@ def retriever_node(state: GraphState):
         state["logs"].append("> RETRIEVER_AGENT: No trials found or parsed from API.")
         
     retriever = HybridRetriever(db)
-    top_chunks = retriever.search(query=query, top_k=3)
-    state["retrieved_trials"] = top_chunks
+    # Fetch more chunks initially to allow for grouping by trial
+    top_chunks = retriever.search(query=query, top_k=8)
     
-    nct_ids = [chunk.get("nct_id") for chunk in top_chunks]
-    state["logs"].append(f"> RETRIEVER_AGENT: Found {len(top_chunks)} relevant trial chunks via Reciprocal Rank Fusion. Trials: {nct_ids}")
+    # Group by NCT ID to prevent duplicate trial evaluations in the UI
+    unique_trials = {}
+    for chunk in top_chunks:
+        nct_id = chunk.get("nct_id")
+        if nct_id not in unique_trials:
+            unique_trials[nct_id] = {
+                "nct_id": nct_id,
+                "title": chunk.get("title"),
+                "chunk_type": chunk.get("chunk_type"),
+                "text": chunk.get("text")
+            }
+        else:
+            # Combine text of different chunks for the same trial (e.g. inclusion + exclusion)
+            unique_trials[nct_id]["text"] += "\n\n---\n\n" + chunk.get("text")
+            unique_trials[nct_id]["chunk_type"] = "combined"
+            
+    # Take the top 3 unique trials
+    unique_top_trials = list(unique_trials.values())[:3]
+    state["retrieved_trials"] = unique_top_trials
+    
+    nct_ids = [trial.get("nct_id") for trial in unique_top_trials]
+    state["logs"].append(f"> RETRIEVER_AGENT: Aggregated into {len(unique_top_trials)} unique trials via Reciprocal Rank Fusion. Trials: {nct_ids}")
     
     return state
 
