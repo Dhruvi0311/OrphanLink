@@ -1,0 +1,33 @@
+CLINICAL ONCOLOGY CONSULTATION REPORT
+
+PATIENT NAME: Jane Smith
+DATE OF CONSULTATION: November 05, 2023
+
+CHIEF COMPLAINT: Initial consultation for newly diagnosed advanced breast cancer.
+
+HISTORY OF PRESENT ILLNESS:
+The patient is an adult female who presented to her primary care physician with a palpable breast mass and axillary lymphadenopathy. A core needle biopsy was performed last week, confirming invasive ductal carcinoma. Subsequent imaging with a PET-CT scan revealed multiple metastatic lesions in the liver and bone. 
+
+She has not yet started any systemic therapy. We are currently waiting on the results of her comprehensive molecular profiling panel to determine receptor status and identify any targetable genetic alterations.
+
+PAST MEDICAL HISTORY:
+1. Hypothyroidism (on Levothyroxine)
+2. Osteopenia
+
+PAST ONCOLOGICAL THERAPIES:
+None. Treatment-naïve for metastatic disease.
+
+CURRENT MEDICATIONS:
+- Levothyroxine 75 mcg daily
+- Vitamin D3 2000 IU daily
+
+LABORATORY RESULTS (Recent):
+- WBC: 5.8 K/uL
+- Hemoglobin: 12.1 g/dL
+- Platelets: 210 K/uL
+- Creatinine: 0.8 mg/dL
+- AST: 65 U/L (mildly elevated)
+- ALT: 72 U/L (mildly elevated)
+
+PLAN:
+The patient has stage IV invasive ductal carcinoma. Given the extensive disease burden, we will initiate systemic therapy as soon as the molecular profiling results return. If she harbors specific targetable alterations, we will strongly consider enrolling her in a precision medicine clinical trial. 

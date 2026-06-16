@@ -6,12 +6,16 @@ from rank_bm25 import BM25Okapi
 from typing import List
 from clinical_protocol_parser import TrialChunk
 
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+DEFAULT_CHROMA_DIR = os.path.join(BASE_DIR, "chroma_db")
+DEFAULT_BM25_PATH = os.path.join(BASE_DIR, "bm25.pkl")
+
 class HybridDB:
     """
     Manages both the dense vector store (ChromaDB) and sparse keyword store (BM25)
     for zero-cost local hybrid retrieval.
     """
-    def __init__(self, persist_directory: str = "./chroma_db", bm25_path: str = "./bm25.pkl"):
+    def __init__(self, persist_directory: str = DEFAULT_CHROMA_DIR, bm25_path: str = DEFAULT_BM25_PATH):
         self.persist_directory = persist_directory
         self.bm25_path = bm25_path
         

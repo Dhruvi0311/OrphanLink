@@ -1,11 +1,15 @@
 import uuid
 import asyncio
-from fastapi import FastAPI, UploadFile, File, BackgroundTasks
+from fastapi import FastAPI, UploadFile, File, Form, BackgroundTasks, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 import json
+from pydantic import BaseModel
+from typing import Dict
 
 from agent_orchestrator import build_graph
+from file_parser import parse_file
+from report_generator import create_clinical_report
 
 app = FastAPI()
 
@@ -19,19 +23,9 @@ app.add_middleware(
 
 # In-memory store for jobs
 jobs = {}
-
 graph = build_graph()
 
-async def run_langgraph(job_id: str, text: str):
-    # Initialize state
-    state = {
-        "patient_report": text,
-        "extracted_biomarkers": None,
-        "retrieved_trials": [],
-        "evaluation_results": [],
-        "logs": []
-    }
-    
+async def run_langgraph(job_id: str, state: dict):
     jobs[job_id]["status"] = "running"
     
     try:
@@ -41,16 +35,22 @@ async def run_langgraph(job_id: str, text: str):
                 new_logs = updated_state.get("logs", [])
                 
                 # Find new logs since last step
-                current_logs_len = len(jobs[job_id]["logs"])
+                current_logs_len = jobs[job_id].get("logs_len", 0)
                 for log in new_logs[current_logs_len:]:
                     await jobs[job_id]["queue"].put(log)
                     
-                jobs[job_id]["logs"] = new_logs
+                jobs[job_id]["logs_len"] = len(new_logs)
                 jobs[job_id]["state"] = updated_state
                 
-        # Send completion event
-        await jobs[job_id]["queue"].put("[DONE]")
-        jobs[job_id]["status"] = "completed"
+        # Check if we ended early due to quiz
+        final_state = jobs[job_id].get("state", {})
+        if final_state.get("quiz_questions") and not final_state.get("quiz_answers"):
+            await jobs[job_id]["queue"].put("[QUIZ_REQUIRED]")
+            jobs[job_id]["status"] = "waiting_for_input"
+        else:
+            await jobs[job_id]["queue"].put("[DONE]")
+            jobs[job_id]["status"] = "completed"
+            
     except Exception as e:
         await jobs[job_id]["queue"].put(f"[ERROR] {str(e)}")
         jobs[job_id]["status"] = "failed"
@@ -59,25 +59,68 @@ async def run_langgraph(job_id: str, text: str):
 async def upload_file(background_tasks: BackgroundTasks, file: UploadFile = File(...)):
     contents = await file.read()
     
-    # Try parsing as text, if it's a raw PDF we use a demo fallback 
-    # (In production, PyMuPDF or pdfplumber would be integrated here)
-    try:
-        text = contents.decode("utf-8")
-    except UnicodeDecodeError:
-        text = "Extracted text from PDF: Patient is a 45-year-old presenting with an EGFR mutation. Has a history of taking Afatinib."
+    # Parse file using robust parser
+    text = parse_file(contents, file.filename)
         
     job_id = str(uuid.uuid4())
     jobs[job_id] = {
         "status": "pending",
         "queue": asyncio.Queue(),
         "logs": [],
-        "state": {}
+        "state": {
+            "patient_report": text,
+            "extracted_biomarkers": None,
+            "quiz_questions": None,
+            "quiz_answers": None,
+            "retrieved_trials": [],
+            "evaluation_results": [],
+            "task_list": None,
+            "logs": []
+        }
     }
     
     # Fire off the LangGraph background task
-    background_tasks.add_task(run_langgraph, job_id, text)
+    background_tasks.add_task(run_langgraph, job_id, jobs[job_id]["state"])
     
     return {"job_id": job_id}
+
+class QuizSubmission(BaseModel):
+    job_id: str
+    answers: Dict[str, str]
+
+@app.post("/submit-quiz")
+async def submit_quiz(submission: QuizSubmission, background_tasks: BackgroundTasks):
+    job_id = submission.job_id
+    if job_id not in jobs:
+        return {"error": "Job not found"}
+        
+    # Update state with answers
+    state = jobs[job_id]["state"]
+    state["quiz_answers"] = submission.answers
+    
+    # Create a new queue for the next phase of the stream
+    jobs[job_id]["queue"] = asyncio.Queue()
+    jobs[job_id]["status"] = "resumed"
+    
+    # Restart the graph from the beginning with the updated state
+    # (The Abstractor node uses the answers to supplement the report)
+    background_tasks.add_task(run_langgraph, job_id, state)
+    
+    return {"status": "resumed"}
+
+@app.post("/generate-report")
+async def generate_report(request: Request):
+    data = await request.json()
+    biomarkers = data.get("biomarkers", {})
+    trials = data.get("trials", [])
+    
+    pdf_buffer = create_clinical_report(biomarkers, trials)
+    
+    return StreamingResponse(
+        pdf_buffer, 
+        media_type="application/pdf", 
+        headers={"Content-Disposition": "attachment; filename=OrphanLink_Clinical_Report.pdf"}
+    )
 
 @app.get("/stream/{job_id}")
 async def stream_logs(job_id: str):
@@ -94,10 +137,12 @@ async def stream_logs(job_id: str):
         while True:
             log = await queue.get()
             if log == "[DONE]":
-                # Emit final state payload
                 state = jobs[job_id]["state"]
-                # Clean up non-serializable elements if any, but our state is basic dicts
                 yield f"data: {json.dumps({'event': 'completed', 'state': state})}\n\n"
+                break
+            elif log == "[QUIZ_REQUIRED]":
+                state = jobs[job_id]["state"]
+                yield f"data: {json.dumps({'event': 'quiz_required', 'questions': state['quiz_questions']})}\n\n"
                 break
             elif log.startswith("[ERROR]"):
                 yield f"data: {json.dumps({'event': 'error', 'message': log})}\n\n"

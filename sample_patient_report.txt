@@ -1,0 +1,36 @@
+CLINICAL ONCOLOGY CONSULTATION REPORT
+
+PATIENT NAME: John Doe
+DATE OF BIRTH: 05/14/1979 (Age: 46)
+DATE OF CONSULTATION: October 12, 2023
+
+CHIEF COMPLAINT: Follow-up for recurrent non-small cell lung cancer (NSCLC).
+
+HISTORY OF PRESENT ILLNESS:
+The patient is a 46-year-old male with a history of metastatic non-small cell lung cancer. He was initially diagnosed two years ago. Molecular profiling at that time revealed an EGFR Exon 19 deletion. He was started on first-line targeted therapy with Osimertinib. 
+
+He recently presented with worsening cough and dyspnea. Restaging CT scans showed progressive disease with new pulmonary nodules and a small pleural effusion. A liquid biopsy was performed and confirmed the presence of a secondary EGFR T790M resistance mutation.
+
+PAST MEDICAL HISTORY:
+1. Hypertension (well-controlled on Lisinopril)
+2. Type 2 Diabetes Mellitus
+3. Mild thrombocytopenia, likely secondary to previous treatments.
+
+PAST ONCOLOGICAL THERAPIES:
+- Adjuvant therapy (carboplatin and pemetrexed) - 2021
+- Osimertinib (discontinued due to disease progression) - 2022 to present
+
+CURRENT MEDICATIONS:
+- Lisinopril 10 mg daily
+- Metformin 500 mg BID
+
+LABORATORY RESULTS (Recent):
+- WBC: 4.5 K/uL
+- Hemoglobin: 11.2 g/dL
+- Platelets: 95 K/uL (indicative of thrombocytopenia)
+- Creatinine: 0.9 mg/dL
+- AST: 32 U/L
+- ALT: 40 U/L
+
+PLAN:
+The patient's disease has progressed on a first-line EGFR inhibitor. Given the emergence of the T790M mutation, he is a candidate for novel targeted therapies or clinical trials investigating combination therapies overcoming TKI resistance. We will explore available clinical trials for EGFR-mutated NSCLC.
