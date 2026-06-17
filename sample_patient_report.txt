@@ -7,9 +7,9 @@ DATE OF CONSULTATION: October 12, 2023
 CHIEF COMPLAINT: Follow-up for recurrent non-small cell lung cancer (NSCLC).
 
 HISTORY OF PRESENT ILLNESS:
-The patient is a 46-year-old male with a history of metastatic non-small cell lung cancer. He was initially diagnosed two years ago. Molecular profiling at that time revealed an EGFR Exon 19 deletion. He was started on first-line targeted therapy with Osimertinib. 
+The patient is a 46-year-old male with a history of metastatic non-small cell lung cancer. He was initially diagnosed two years ago. Molecular profiling at that time revealed an ERBB1 Exon 19 deletion. He was started on first-line targeted therapy with Tagrisso. 
 
-He recently presented with worsening cough and dyspnea. Restaging CT scans showed progressive disease with new pulmonary nodules and a small pleural effusion. A liquid biopsy was performed and confirmed the presence of a secondary EGFR T790M resistance mutation.
+He recently presented with worsening cough and dyspnea. Restaging CT scans showed progressive disease with new pulmonary nodules and a small pleural effusion. A liquid biopsy was performed and confirmed the presence of a secondary ERBB1 T790M resistance mutation.
 
 PAST MEDICAL HISTORY:
 1. Hypertension (well-controlled on Lisinopril)
@@ -18,7 +18,8 @@ PAST MEDICAL HISTORY:
 
 PAST ONCOLOGICAL THERAPIES:
 - Adjuvant therapy (carboplatin and pemetrexed) - 2021
-- Osimertinib (discontinued due to disease progression) - 2022 to present
+- Tagrisso (discontinued due to disease progression) - 2022 to present
+- Advil (used for pain management)
 
 CURRENT MEDICATIONS:
 - Lisinopril 10 mg daily

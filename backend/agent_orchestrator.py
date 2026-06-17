@@ -7,17 +7,26 @@ from langchain_core.messages import HumanMessage
 from llm_setup import get_llama3_llm
 from retriever import HybridRetriever
 from database import HybridDB
+from prompt.abstractor import get_abstractor_prompt
+from prompt.quiz_generator import get_quiz_generator_prompt
+from prompt.evaluator import get_evaluator_prompt
+from prompt.validator import get_validator_prompt
+from prompt.task_generator import get_task_generator_prompt
+from entity_linker import standardize_biomarkers
 
 # State Definition
 class GraphState(TypedDict):
     patient_report: str
     extracted_biomarkers: Optional[Dict[str, Any]]
+    standardized_biomarkers: Optional[Dict[str, Any]]
     quiz_questions: Optional[List[str]]
     quiz_answers: Optional[Dict[str, str]]
     retrieved_trials: List[Dict[str, Any]]
     evaluation_results: List[Dict[str, Any]]
     task_list: Optional[List[str]]
     logs: List[str]
+    validation_feedback: Optional[Dict[str, str]]
+    retry_count: Optional[int]
 
 # Node 1: Abstractor
 def abstractor_node(state: GraphState):
@@ -31,25 +40,7 @@ def abstractor_node(state: GraphState):
         for q, a in answers.items():
             report += f"Q: {q}\nA: {a}\n"
             
-    prompt = f"""
-    You are an expert clinical data abstractor. Extract the following information from the patient report below and output ONLY valid JSON.
-    Do not include any conversational filler.
-    
-    Schema:
-    {{
-        "age": <int or null>,
-        "active_mutations": [<list of string acronyms or names, e.g. "EGFR", "BRCA1">],
-        "past_therapies": [<list of string medication names>],
-        "medical_terms_glossary": {{
-            "<term>": "<short, 1-sentence plain-English explanation of the specialized term or acronym for a patient>"
-        }}
-    }}
-    
-    Make sure to include any complex medical jargon or acronyms found in the extracted fields (mutations, therapies) into the glossary with simple explanations.
-    
-    Patient Report:
-    {report}
-    """
+    prompt = get_abstractor_prompt(report)
     
     # Make LLM call
     state["logs"].append("> EXTRACTOR_AGENT: Analyzing raw patient report to extract biomarkers...")
@@ -93,12 +84,7 @@ def quiz_generator_node(state: GraphState):
     if missing_fields:
         state["logs"].append(f"> QUIZ_GENERATOR: Missing critical info: {missing_fields}. Generating questions...")
         llm = get_llama3_llm()
-        prompt = f"""
-        The following patient information is missing: {missing_fields}.
-        Generate a list of 1-2 simple questions to ask the patient to obtain this missing information.
-        Output ONLY a valid JSON list of strings. Do not include conversational filler.
-        Example: ["What is your current age?", "Have you had any genetic testing for mutations like EGFR or BRCA?"]
-        """
+        prompt = get_quiz_generator_prompt(missing_fields)
         response = llm.invoke([HumanMessage(content=prompt)])
         
         try:
@@ -127,7 +113,25 @@ def quiz_generator_node(state: GraphState):
 def route_after_quiz(state: GraphState):
     if state.get("quiz_questions") and not state.get("quiz_answers"):
         return END
-    return "retriever"
+    return "entity_linker"
+
+def entity_linker_node(state: GraphState):
+    state["logs"].append("> ENTITY_LINKER: Standardizing extracted biomarkers via APIs...")
+    biomarkers = state.get("extracted_biomarkers", {})
+    
+    std_biomarkers = standardize_biomarkers(biomarkers)
+    state["standardized_biomarkers"] = std_biomarkers
+    
+    # Log the mappings
+    for orig, std in zip(biomarkers.get("past_therapies", []), std_biomarkers.get("past_therapies", [])):
+        if orig.lower() != std.lower():
+            state["logs"].append(f"> ENTITY_LINKER: Normalized therapy '{orig}' to '{std}' (RxNorm)")
+            
+    for orig, std in zip(biomarkers.get("active_mutations", []), std_biomarkers.get("active_mutations", [])):
+        if orig.lower() != std.lower():
+            state["logs"].append(f"> ENTITY_LINKER: Normalized mutation '{orig}' to '{std}' (MyGene.info)")
+            
+    return state
 
 from clinical_trials_api import fetch_trials, parse_trials_to_chunks
 
@@ -138,7 +142,7 @@ def retriever_node(state: GraphState):
     # Optional: Clear existing DB to ensure we only evaluate fresh trials for this patient
     # In a real system, you might persist them and just add new ones, but for this dynamic workflow we can just add them.
     
-    biomarkers = state.get("extracted_biomarkers", {})
+    biomarkers = state.get("standardized_biomarkers") or state.get("extracted_biomarkers", {})
     mutations = " ".join(biomarkers.get("active_mutations", []))
     therapies = " ".join(biomarkers.get("past_therapies", []))
     
@@ -190,32 +194,28 @@ def evaluator_node(state: GraphState):
     llm = get_llama3_llm()
     biomarkers = state.get("extracted_biomarkers", {})
     trials = state.get("retrieved_trials", [])
+    feedback = state.get("validation_feedback", {})
+    existing_results = {r['trial']['nct_id']: r for r in state.get("evaluation_results", [])}
     
     evaluation_results = []
     
     for trial in trials:
+        nct_id = trial.get('nct_id')
+        
+        # If we have existing results and NO feedback for this trial, we don't need to re-evaluate
+        if existing_results and nct_id not in feedback and existing_results.get(nct_id):
+            evaluation_results.append(existing_results[nct_id])
+            continue
+            
         time.sleep(3) # Anti rate-limit delay
-        prompt = f"""
-        You are a strict clinical trial evaluator. Compare the patient's data against the trial criteria below.
-        Determine if the patient is EXCLUDED or a MATCH. 
-        Output ONLY valid JSON.
+        trial_feedback = feedback.get(nct_id)
+        prompt = get_evaluator_prompt(biomarkers, trial.get('text'), trial_feedback)
         
-        Patient Data:
-        {json.dumps(biomarkers)}
-        
-        Trial Criteria:
-        {trial.get('text')}
-        
-        Output Schema:
-        {{
-            "status": "MATCH" or "EXCLUDED",
-            "reason": "<short explanation citing the specific criteria>",
-            "key_patient_terms": ["<exact words from patient data that led to this decision, e.g. '45', 'EGFR'>"],
-            "key_trial_terms": ["<exact words from trial criteria that led to this decision, e.g. 'Age >= 18', 'EGFR mutation'>"]
-        }}
-        """
-        
-        state["logs"].append(f"> EVALUATOR_AGENT: Cross-referencing {trial.get('chunk_type')} criteria for Trial {trial.get('nct_id')}...")
+        if trial_feedback:
+            state["logs"].append(f"> EVALUATOR_AGENT: Re-evaluating {nct_id} based on Validator feedback...")
+        else:
+            state["logs"].append(f"> EVALUATOR_AGENT: Cross-referencing {trial.get('chunk_type')} criteria for Trial {nct_id}...")
+            
         response = llm.invoke([HumanMessage(content=prompt)])
         
         try:
@@ -246,46 +246,35 @@ def evaluator_node(state: GraphState):
         evaluation_results.append(result)
         
         if eval_dict.get("status", "").upper() == "EXCLUDED":
-            state["logs"].append(f"> EVALUATOR_AGENT: Hard failure code detected. Patient excluded from {trial.get('nct_id')} due to: {eval_dict.get('reason')}")
+            if trial_feedback:
+                state["logs"].append(f"> EVALUATOR_AGENT: Agreed with Validator. Patient excluded from {nct_id} due to: {eval_dict.get('reason')}")
+            else:
+                state["logs"].append(f"> EVALUATOR_AGENT: Hard failure code detected. Patient excluded from {nct_id} due to: {eval_dict.get('reason')}")
         else:
-            state["logs"].append(f"> EVALUATOR_AGENT: Validated match for {trial.get('nct_id')}.")
+            if trial_feedback:
+                state["logs"].append(f"> EVALUATOR_AGENT: Still claims MATCH for {nct_id} despite feedback.")
+            else:
+                state["logs"].append(f"> EVALUATOR_AGENT: Validated match for {nct_id}.")
             
     state["evaluation_results"] = evaluation_results
     return state
 
-# Node 4.5: Validator
 def validator_node(state: GraphState):
     llm = get_llama3_llm()
     biomarkers = state.get("extracted_biomarkers", {})
     evaluation_results = state.get("evaluation_results", [])
+    retry_count = state.get("retry_count", 0)
     
     validated_results = []
+    feedback = {}
     
     for result in evaluation_results:
+        nct_id = result['trial']['nct_id']
         if result.get("evaluation", {}).get("status") == "MATCH":
             time.sleep(3) # Anti rate-limit delay
-            state["logs"].append(f"> VALIDATOR_AGENT: Double-checking MATCH for Trial {result['trial']['nct_id']} against hard exclusions...")
+            state["logs"].append(f"> VALIDATOR_AGENT: Double-checking MATCH for Trial {nct_id} against hard exclusions...")
             
-            prompt = f"""
-            You are a strict clinical trial validation agent.
-            A previous evaluator marked this patient as a MATCH for the trial.
-            Your job is to double-check for ANY hard exclusions in the trial criteria that the patient violates.
-            Focus specifically on: Age limits, Pregnancy status, Organ function limits, and Prior therapies.
-            
-            Patient Data: {json.dumps(biomarkers)}
-            Trial Criteria: {result['trial'].get('text')}
-            
-            If the patient violates ANY hard exclusion, change the status to EXCLUDED. Otherwise, keep it MATCH.
-            Output ONLY valid JSON.
-            
-            Output Schema:
-            {{
-                "status": "MATCH" or "EXCLUDED",
-                "reason": "Validation passed" or "<specific reason for exclusion>",
-                "key_patient_terms": ["<exact words from patient data related to the exclusion, if applicable>"],
-                "key_trial_terms": ["<exact words from trial criteria related to the exclusion, if applicable>"]
-            }}
-            """
+            prompt = get_validator_prompt(biomarkers, result['trial'].get('text'))
             
             response = llm.invoke([HumanMessage(content=prompt)])
             
@@ -304,21 +293,36 @@ def validator_node(state: GraphState):
                 val_dict = json.loads(content)
                 
                 if val_dict.get("status", "").upper() == "EXCLUDED":
-                    state["logs"].append(f"> VALIDATOR_AGENT: MATCH REJECTED! Found hard exclusion for {result['trial']['nct_id']}: {val_dict.get('reason')}")
-                    result["evaluation"]["status"] = "EXCLUDED"
-                    result["evaluation"]["reason"] = f"Validation Override: {val_dict.get('reason')}"
-                    if val_dict.get("key_patient_terms"):
-                        result["evaluation"]["key_patient_terms"] = val_dict["key_patient_terms"]
-                    if val_dict.get("key_trial_terms"):
-                        result["evaluation"]["key_trial_terms"] = val_dict["key_trial_terms"]
+                    reason = val_dict.get('reason')
+                    state["logs"].append(f"> VALIDATOR_AGENT: Contradiction found for {nct_id}: {reason}")
+                    
+                    if retry_count < 2:
+                        feedback[nct_id] = reason
+                        state["logs"].append(f"> VALIDATOR_AGENT: Sending critique back to Evaluator for {nct_id}.")
+                    else:
+                        state["logs"].append(f"> VALIDATOR_AGENT: Max retries reached. Forcing EXCLUDED for {nct_id}.")
+                        result["evaluation"]["status"] = "EXCLUDED"
+                        result["evaluation"]["reason"] = f"Validation Override: {reason}"
+                        if val_dict.get("key_patient_terms"):
+                            result["evaluation"]["key_patient_terms"] = val_dict["key_patient_terms"]
+                        if val_dict.get("key_trial_terms"):
+                            result["evaluation"]["key_trial_terms"] = val_dict["key_trial_terms"]
                 else:
-                    state["logs"].append(f"> VALIDATOR_AGENT: MATCH CONFIRMED for {result['trial']['nct_id']}.")
+                    state["logs"].append(f"> VALIDATOR_AGENT: MATCH CONFIRMED for {nct_id}.")
             except Exception:
                 pass
                 
         validated_results.append(result)
         
     state["evaluation_results"] = validated_results
+    
+    if feedback:
+        state["validation_feedback"] = feedback
+        state["retry_count"] = retry_count + 1
+    else:
+        state["validation_feedback"] = None
+        state["retry_count"] = 0
+        
     return state
 
 # Node 5: Task Generator
@@ -328,16 +332,7 @@ def task_generator_node(state: GraphState):
     
     matches = [r for r in state.get("evaluation_results", []) if r.get("evaluation", {}).get("status") == "MATCH"]
     
-    prompt = f"""
-    Based on the following patient biomarkers and matching clinical trials, generate a short checklist of 3-5 actionable next steps for the patient.
-    Output ONLY a valid JSON list of strings.
-    
-    Biomarkers: {json.dumps(state.get("extracted_biomarkers", dict()))}
-    Matching Trials: {[m['trial']['nct_id'] for m in matches]}
-    
-    Example output:
-    ["Discuss Afatinib eligibility with your primary oncologist.", "Request a follow-up biomarker test to confirm EGFR status.", "Review consent forms for Trial NCT01234567."]
-    """
+    prompt = get_task_generator_prompt(state.get("extracted_biomarkers", dict()), matches)
     
     response = llm.invoke([HumanMessage(content=prompt)])
     
@@ -362,6 +357,11 @@ def task_generator_node(state: GraphState):
         
     return state
 
+def route_after_validator(state: GraphState):
+    if state.get("validation_feedback"):
+        return "evaluator"
+    return "task_generator"
+
 def build_graph():
     """
     Constructs the LangGraph state machine routing the Abstractor, QuizGenerator, Retriever, Evaluator, Validator, and TaskGenerator nodes.
@@ -370,6 +370,7 @@ def build_graph():
     
     workflow.add_node("abstractor", abstractor_node)
     workflow.add_node("quiz_generator", quiz_generator_node)
+    workflow.add_node("entity_linker", entity_linker_node)
     workflow.add_node("retriever", retriever_node)
     workflow.add_node("evaluator", evaluator_node)
     workflow.add_node("validator", validator_node)
@@ -378,9 +379,10 @@ def build_graph():
     workflow.set_entry_point("abstractor")
     workflow.add_edge("abstractor", "quiz_generator")
     workflow.add_conditional_edges("quiz_generator", route_after_quiz)
+    workflow.add_edge("entity_linker", "retriever")
     workflow.add_edge("retriever", "evaluator")
     workflow.add_edge("evaluator", "validator")
-    workflow.add_edge("validator", "task_generator")
+    workflow.add_conditional_edges("validator", route_after_validator)
     workflow.add_edge("task_generator", END)
     
     app = workflow.compile()
