@@ -38,7 +38,7 @@ def parse_file(file_bytes: bytes, filename: str) -> str:
                 for image in images:
                     text += pytesseract.image_to_string(image) + "\n"
                     
-            return text.strip()
+            return text.strip()[:7500] # Truncate to prevent token limit errors
         except Exception as e:
             return f"Error parsing PDF: {e}"
             

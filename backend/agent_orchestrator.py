@@ -9,6 +9,7 @@ from retriever import HybridRetriever
 from database import HybridDB
 from prompt.abstractor import get_abstractor_prompt
 from prompt.quiz_generator import get_quiz_generator_prompt
+from prompt.chat_intake import get_chat_intake_prompt
 from prompt.evaluator import get_evaluator_prompt
 from prompt.validator import get_validator_prompt
 from prompt.task_generator import get_task_generator_prompt
@@ -17,6 +18,7 @@ from entity_linker import standardize_biomarkers
 # State Definition
 class GraphState(TypedDict):
     patient_report: str
+    chat_history: List[Dict[str, str]]
     extracted_biomarkers: Optional[Dict[str, Any]]
     standardized_biomarkers: Optional[Dict[str, Any]]
     quiz_questions: Optional[List[str]]
@@ -31,14 +33,23 @@ class GraphState(TypedDict):
 # Node 1: Abstractor
 def abstractor_node(state: GraphState):
     llm = get_llama3_llm()
-    report = state["patient_report"]
+    report = state.get("patient_report", "")
     answers = state.get("quiz_answers", {})
+    chat_history = state.get("chat_history", [])
     
     # Append any answered quiz questions to the report context
     if answers:
         report += "\nAdditional Patient Info:\n"
         for q, a in answers.items():
             report += f"Q: {q}\nA: {a}\n"
+            
+    # Include chat history if present
+    if chat_history:
+        report += "\nConversation History:\n"
+        for msg in chat_history:
+            role = msg.get("role", "unknown").upper()
+            content = msg.get("content", "")
+            report += f"{role}: {content}\n"
             
     prompt = get_abstractor_prompt(report)
     
@@ -84,7 +95,10 @@ def quiz_generator_node(state: GraphState):
     if missing_fields:
         state["logs"].append(f"> QUIZ_GENERATOR: Missing critical info: {missing_fields}. Generating questions...")
         llm = get_llama3_llm()
-        prompt = get_quiz_generator_prompt(missing_fields)
+        if state.get("chat_history"):
+            prompt = get_chat_intake_prompt(state.get("chat_history"), missing_fields)
+        else:
+            prompt = get_quiz_generator_prompt(missing_fields)
         response = llm.invoke([HumanMessage(content=prompt)])
         
         try:
@@ -101,7 +115,11 @@ def quiz_generator_node(state: GraphState):
                 
             questions = json.loads(content)
             if isinstance(questions, list) and len(questions) > 0:
-                state["quiz_questions"] = questions
+                unique_qs = []
+                for q in questions:
+                    if q not in unique_qs:
+                        unique_qs.append(q)
+                state["quiz_questions"] = unique_qs
                 state["logs"].append("> QUIZ_GENERATOR: Halting workflow to request user input.")
         except Exception:
             state["quiz_questions"] = None
@@ -189,6 +207,8 @@ def retriever_node(state: GraphState):
     
     return state
 
+import concurrent.futures
+
 # Node 4: Evaluator
 def evaluator_node(state: GraphState):
     llm = get_llama3_llm()
@@ -199,22 +219,20 @@ def evaluator_node(state: GraphState):
     
     evaluation_results = []
     
-    for trial in trials:
+    def process_trial(trial):
         nct_id = trial.get('nct_id')
         
-        # If we have existing results and NO feedback for this trial, we don't need to re-evaluate
         if existing_results and nct_id not in feedback and existing_results.get(nct_id):
-            evaluation_results.append(existing_results[nct_id])
-            continue
+            return {"result": existing_results[nct_id], "logs": []}
             
-        time.sleep(3) # Anti rate-limit delay
         trial_feedback = feedback.get(nct_id)
         prompt = get_evaluator_prompt(biomarkers, trial.get('text'), trial_feedback)
         
+        logs = []
         if trial_feedback:
-            state["logs"].append(f"> EVALUATOR_AGENT: Re-evaluating {nct_id} based on Validator feedback...")
+            logs.append(f"> EVALUATOR_AGENT: Re-evaluating {nct_id} based on Validator feedback...")
         else:
-            state["logs"].append(f"> EVALUATOR_AGENT: Cross-referencing {trial.get('chunk_type')} criteria for Trial {nct_id}...")
+            logs.append(f"> EVALUATOR_AGENT: Cross-referencing {trial.get('chunk_type')} criteria for Trial {nct_id}...")
             
         response = llm.invoke([HumanMessage(content=prompt)])
         
@@ -243,18 +261,26 @@ def evaluator_node(state: GraphState):
             "trial": trial,
             "evaluation": eval_dict
         }
-        evaluation_results.append(result)
         
         if eval_dict.get("status", "").upper() == "EXCLUDED":
             if trial_feedback:
-                state["logs"].append(f"> EVALUATOR_AGENT: Agreed with Validator. Patient excluded from {nct_id} due to: {eval_dict.get('reason')}")
+                logs.append(f"> EVALUATOR_AGENT: Agreed with Validator. Patient excluded from {nct_id} due to: {eval_dict.get('reason')}")
             else:
-                state["logs"].append(f"> EVALUATOR_AGENT: Hard failure code detected. Patient excluded from {nct_id} due to: {eval_dict.get('reason')}")
+                logs.append(f"> EVALUATOR_AGENT: Hard failure code detected. Patient excluded from {nct_id} due to: {eval_dict.get('reason')}")
         else:
             if trial_feedback:
-                state["logs"].append(f"> EVALUATOR_AGENT: Still claims MATCH for {nct_id} despite feedback.")
+                logs.append(f"> EVALUATOR_AGENT: Still claims MATCH for {nct_id} despite feedback.")
             else:
-                state["logs"].append(f"> EVALUATOR_AGENT: Validated match for {nct_id}.")
+                logs.append(f"> EVALUATOR_AGENT: Validated match for {nct_id}.")
+                
+        return {"result": result, "logs": logs}
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
+        futures = [executor.submit(process_trial, trial) for trial in trials]
+        for future in concurrent.futures.as_completed(futures):
+            res = future.result()
+            evaluation_results.append(res["result"])
+            state["logs"].extend(res["logs"])
             
     state["evaluation_results"] = evaluation_results
     return state
@@ -268,11 +294,11 @@ def validator_node(state: GraphState):
     validated_results = []
     feedback = {}
     
-    for result in evaluation_results:
+    def process_validation(result):
         nct_id = result['trial']['nct_id']
+        logs = []
         if result.get("evaluation", {}).get("status") == "MATCH":
-            time.sleep(3) # Anti rate-limit delay
-            state["logs"].append(f"> VALIDATOR_AGENT: Double-checking MATCH for Trial {nct_id} against hard exclusions...")
+            logs.append(f"> VALIDATOR_AGENT: Double-checking MATCH for Trial {nct_id} against hard exclusions...")
             
             prompt = get_validator_prompt(biomarkers, result['trial'].get('text'))
             
@@ -294,13 +320,12 @@ def validator_node(state: GraphState):
                 
                 if val_dict.get("status", "").upper() == "EXCLUDED":
                     reason = val_dict.get('reason')
-                    state["logs"].append(f"> VALIDATOR_AGENT: Contradiction found for {nct_id}: {reason}")
+                    logs.append(f"> VALIDATOR_AGENT: Contradiction found for {nct_id}: {reason}")
                     
                     if retry_count < 2:
-                        feedback[nct_id] = reason
-                        state["logs"].append(f"> VALIDATOR_AGENT: Sending critique back to Evaluator for {nct_id}.")
+                        return {"result": result, "feedback": {nct_id: reason}, "logs": logs}
                     else:
-                        state["logs"].append(f"> VALIDATOR_AGENT: Max retries reached. Forcing EXCLUDED for {nct_id}.")
+                        logs.append(f"> VALIDATOR_AGENT: Max retries reached. Forcing EXCLUDED for {nct_id}.")
                         result["evaluation"]["status"] = "EXCLUDED"
                         result["evaluation"]["reason"] = f"Validation Override: {reason}"
                         if val_dict.get("key_patient_terms"):
@@ -308,12 +333,20 @@ def validator_node(state: GraphState):
                         if val_dict.get("key_trial_terms"):
                             result["evaluation"]["key_trial_terms"] = val_dict["key_trial_terms"]
                 else:
-                    state["logs"].append(f"> VALIDATOR_AGENT: MATCH CONFIRMED for {nct_id}.")
+                    logs.append(f"> VALIDATOR_AGENT: MATCH CONFIRMED for {nct_id}.")
             except Exception:
                 pass
                 
-        validated_results.append(result)
-        
+        return {"result": result, "feedback": {}, "logs": logs}
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
+        futures = [executor.submit(process_validation, res) for res in evaluation_results]
+        for future in concurrent.futures.as_completed(futures):
+            res = future.result()
+            validated_results.append(res["result"])
+            feedback.update(res["feedback"])
+            state["logs"].extend(res["logs"])
+            
     state["evaluation_results"] = validated_results
     
     if feedback:

@@ -1,104 +1,105 @@
 # OrphanLink: Autonomous Clinical Trial Matching Portal
 
-OrphanLink is an AI-powered architecture designed to seamlessly match patient biomarker reports with complex ClinicalTrials.gov criteria. It leverages LangGraph agentic reasoning, multimodal file parsing, dynamic API integrations, and Hybrid Semantic Search to provide a fully automated, interactive patient experience.
+OrphanLink is an AI-powered B2B portal designed to seamlessly match patient biomarker reports with complex ClinicalTrials.gov criteria. Powered by a self-correcting LangGraph state-machine orchestrator, entity standardization APIs, hybrid semantic search, and an interactive intake chatbot, OrphanLink ensures highly precise, zero-hallucination patient-to-trial mapping.
 
-## ✨ Key Features & Updates
+---
 
-### 1. Dynamic File Parsing & OCR
-Users can upload their lab reports or medical records in multiple formats (PDF, JSON, TXT).
-- **Digital PDFs**: Extracted near-instantly using PyMuPDF.
-- **Scanned PDFs**: Automatically detects if a PDF is an image scan (based on low text content) and intelligently falls back to optical character recognition (OCR) using `pdf2image` and `pytesseract`.
-- **JSON / TXT**: Safely parses and formats standard text or JSON reports.
+## ✨ Key Features & Core Components
 
-### 2. Strict, Hallucination-Free Agentic Orchestrator
-The core logic is driven by a LangGraph state-machine workflow orchestrating specialized AI "Agents" powered by Llama 3. The prompts for these agents have been modularized and strictly engineered to prevent hallucinations:
-- **Abstractor Agent**: Analyzes the raw patient report and strictly extracts specific biomarkers (e.g., age, active genetic mutations, past therapies) into a structured JSON schema, omitting unmentioned data.
-- **Evaluator Agent**: Acts as a strict clinical trial evaluator. It cross-references the patient's exact extracted data against complex Inclusion/Exclusion criteria and generates a clear "MATCH" or "EXCLUDED" status, providing exact text quotes as evidence.
-- **Validator Agent**: An explicit validation node that double-checks any "MATCH" declared by the Evaluator. If it catches a contradiction (e.g., a hard exclusion that was missed), it sends the critique back to the Evaluator in a cyclic loop for self-correction, preventing hallucinated matches.
+### 1. Dynamic File Ingestion & Intelligent OCR Fallback
+Patients or clinicians can upload medical reports in PDF, JSON, or TXT formats.
+- **Digital PDFs**: Extracted instantly using `PyMuPDF`.
+- **Scanned Reports**: Automatically detects scanned documents (text length < 50 chars) and falls back to OCR processing using `pdf2image` and `pytesseract`.
+- **Boilerplate Reduction**: The parser automatically truncates text to the first 7,500 characters. This isolates the core patient diagnostic details (Pages 1–3) while discarding generic, verbose lab Methods and Limitations pages—minimizing token usage and preventing LLM context overload.
 
-### 3. Interactive Medical Quiz (Missing Data Handling)
-If the patient uploads an incomplete report, the workflow does not blindly guess or fail. 
-- A specialized **Quiz Generator Agent** detects missing critical fields (like age or mutation status).
-- It pauses the workflow and dynamically generates plain-English questions for the patient.
-- The UI triggers an interactive form ("Missing Information Detected").
-- Once the user answers, the workflow seamlessly resumes, appending the new data to the context.
+### 2. Zero-Hallucination Agentic LangGraph Orchestrator
+The core routing and evaluation logic is driven by a LangGraph state machine orchestrating specialized agent nodes:
+- **Abstractor Agent**: Extracts critical patient indicators (age, mutations, prior treatments) into a strict JSON schema.
+- **Quiz Generator Agent**: Pauses the workflow if critical matching fields are missing, generating plain-English questions for the patient. Once answered, the graph resumes contextually.
+- **Evaluator Agent**: Evaluates patient data against inclusion/exclusion criteria, yielding a `"MATCH"` or `"EXCLUDED"` status backed by exact verbatim quotes.
+- **Validator Agent (Safety Loop)**: A secondary agent that double-checks all evaluated `"MATCH"` cases. If a contradiction is detected (e.g., a hidden exclusion criterion was violated), it routes the state machine back to the Evaluator node with structured critique for self-correction.
+- **Task Generator Agent**: Synthesizes matches into a personalized patient checklist (next steps, oncological consult, scheduling).
 
-### 4. Biomarker Entity Linking (Standardization)
-To ensure accurate trial matching, raw extracted medical terms (like drug brand names or mutation aliases) are standardized using public APIs before searching:
-- **Therapies**: Connects to the **RxNorm API** to resolve brand names (e.g., "Tagrisso", "Advil") to their exact active scientific ingredients.
-- **Mutations**: Connects to the **MyGene.info API** to standardize mutation descriptions into official gene symbols.
+### 3. API-Driven Biomarker Standardization (Entity Linking)
+Raw terminology from patient reports is normalized to scientific standards using public medical databases:
+- **Therapies**: Normalized via the **RxNorm API** to map drug brand names to their active pharmaceutical ingredients.
+- **Genetic Mutations**: Standardized via the **MyGene.info API** to link gene aliases to official symbols.
 
-### 5. Dynamic ClinicalTrials.gov Integration
-OrphanLink does not rely on a static or hardcoded database.
-- The **Retriever Agent** takes the patient's standardized mutations and therapies and dynamically calls the official **ClinicalTrials.gov V2 API**.
-- It fetches the latest active clinical trials in real-time, extracts their complex eligibility criteria, and chunks them.
-- These criteria chunks are temporarily ingested into a local vector database (ChromaDB + BM25) to perform rapid Reciprocal Rank Fusion (RRF) matching.
+### 4. Real-Time Retrieval & Hybrid Semantic Search
+- Queries are constructed using standardized keywords and searched against the official **ClinicalTrials.gov V2 API** in real-time.
+- Trials are chunked and ranked locally using a hybrid search algorithm (**ChromaDB** for dense vector similarity + **Rank-BM25** for sparse text matching), merged via **Reciprocal Rank Fusion (RRF)**.
 
-### 6. Personalized Patient Action Plan
-Instead of leaving the patient with just raw trial data, the workflow utilizes a **Task Generator Agent**.
-- It analyzes the matched trials and the patient's profile to generate a concise, personalized "Action Plan" strictly based on grounded facts.
-- This outputs 3-5 actionable next steps (e.g., "Schedule a follow-up biomarker test", "Discuss NCT01234567 consent forms with oncologist").
-- Rendered in the UI as interactive checkboxes.
+### 5. Robust LLM Rate-Limit Resilience
+- Utilizes a custom `RobustChatModel` proxy wrapper in the backend. 
+- It intercepts Groq API `429 Rate Limit` exceptions, extracts the indicated wait duration (TPM limit), sleeps dynamically, and retries the execution up to 6 times to guarantee seamless pipeline completion.
 
-## 🔄 End-to-End Workflow
+### 6. Premium Whole-Site Dark Theme & Responsive Navigation
+- **Universal Dark Mode**: Seamlessly switches the entire page layout—including body background, gateway cards, chatbot panels, matching boards, overlays, and task lists—using a cohesive deep-navy dark aesthetic.
+- **Tactile Branding & State Reset**: Brand logo in the header functions as an active system indicator (featuring a validation status light) and resets the portal state back to the landing page upon click.
 
-1. **Upload & Parse**: The user uploads a medical report. The system parses the document using text extraction or OCR.
-2. **Data Abstraction (`Abstractor Node`)**: The Llama 3 model extracts key patient attributes (age, mutations, prior therapies).
-3. **Completeness Check (`Quiz Generator Node`)**:
-   - *If data is missing*: Pauses execution, asks the user for the missing details via UI, and waits for a response.
-   - *If complete*: Proceeds to retrieval.
-4. **Entity Linking (`Entity Linker Node`)**: Standardizes extracted brand-name drugs and mutation aliases to scientific terms via RxNorm and MyGene.info APIs.
-5. **Trial Retrieval (`Retriever Node`)**: Fetches relevant trials dynamically from ClinicalTrials.gov based on the standardized patient keywords. Applies Hybrid Semantic Search to rank the trials.
-6. **Initial Match Evaluation (`Evaluator Node`)**: AI cross-references the patient's exact data against the trial criteria to determine eligibility.
-7. **Safety Validation Loop (`Validator Node`)**: A secondary AI pass strictly looks for hard exclusions. If a contradiction is found for a "MATCH", the workflow conditionally routes *back* to the Evaluator with the Validator's exact critique, enabling the Evaluator to self-correct its reasoning before moving forward.
-8. **Action Plan (`Task Generator Node`)**: Generates personalized, grounded next steps for the user based on the finalized trial matches.
+---
 
-## 🏗️ Architecture Stack
-*   **Frontend**: Next.js 15 (App Router), React, Tailwind CSS, `shadcn/ui`.
-*   **Backend**: FastAPI, LangGraph, local ChromaDB (Dense search), Rank-BM25 (Sparse keyword search), Reciprocal Rank Fusion (RRF).
-*   **AI Engine**: `meta-llama/Llama-3-8b-8192` via the Groq Inference API.
-*   **Parsing Utilities**: PyMuPDF, pytesseract, pdf2image.
-*   **Prompt Module**: Modularized, strict prompt templates under `backend/prompt/` preventing AI hallucinations.
+## 🔄 End-to-End Workflow Diagram
 
-## 🚀 Local Development (Testing)
+```mermaid
+graph TD
+    A[Upload Report / Start Chat] --> B[Parse File / Intake Chat]
+    B --> C[Abstractor Node: Extract Raw Data]
+    C --> D{Missing Age/Mutation?}
+    D -- Yes --> E[Quiz Generator Node: Pause & Ask User]
+    E -- Answer Form submitted --> C
+    D -- No --> F[Entity Linker Node: Standardize via RxNorm/MyGene]
+    F --> G[Retriever Node: Call ClinicalTrials.gov & Apply RRF]
+    G --> H[Evaluator Node: Initial Match Evaluation]
+    H --> I[Validator Node: Safety Contradiction Check]
+    I -- Contradiction Found --> H
+    I -- Confirmed Match --> J[Task Generator Node: Patient Action Plan]
+    J --> K[Complete: Render Results & Download PDF]
+```
 
-1. **Install System Dependencies** (Required for OCR fallback):
-   ```bash
-   sudo apt-get update && sudo apt-get install -y tesseract-ocr poppler-utils
-   ```
+---
 
-2. **Set up Environment Variables**:
-   - Open `backend/.env` and replace `your_groq_api_key_here` with your actual Groq API key.
+## 🏗️ Architecture & Technology Stack
 
-3. **Navigate to the project root**:
-   ```bash
-   cd OrphanLink
-   ```
+- **Frontend**: Next.js 15 (App Router), React, Lucide Icons, Tailwind CSS, `shadcn/ui`.
+- **Backend**: FastAPI, LangGraph (Agent state machine), ChromaDB (Vector database), Rank-BM25 (Sparse search).
+- **AI Models**: `meta-llama/llama-3.1-8b-instant` via the Groq API.
+- **APIs**: ClinicalTrials.gov V2, RxNorm REST, MyGene.info.
+- **Parsing**: PyMuPDF (`fitz`), Tesseract OCR (`pytesseract`), `pdf2image`.
 
-4. **Run the cross-platform Orchestrator Script**:
-   This script starts the FastAPI backend, Next.js frontend, and Localtunnel concurrently.
-   ```bash
-   python start_dev.py
-   ```
+---
 
-5. **Access the Portal**:
-   - Open the UI locally at `http://localhost:3000`.
-   - Upload a test patient report (PDF or TXT) to watch the agentic tracker stream its live reasoning process.
-   - Note: You can view `tunnel.log` to get your public tunnel URL if you want to test from an external network.
+## 🚀 Getting Started (Local Development)
 
-## ☁️ Deployment Guide (Zero-Cost Setup)
+### 1. Install System OCR Dependencies
+For OCR fallbacks to function properly, install Tesseract and Poppler:
+```bash
+# Ubuntu/Linux
+sudo apt-get update && sudo apt-get install -y tesseract-ocr poppler-utils
+```
 
-### 1. Backend (Self-Hosted via Tunnel)
-You can run the backend continuously on an old laptop, a Raspberry Pi, or any local machine.
-- Ensure the backend is running (`uvicorn main:app --host 0.0.0.0 --port 8000`).
-- Ensure `npx localtunnel --port 8000` is running to expose a secure `https://<random>.loca.lt` URL.
+### 2. Set Up Variables
+Ensure your credentials are set up inside `backend/.env`:
+```env
+GROQ_API_KEY=gsk_your_groq_api_key
+```
 
-### 2. Frontend (Vercel Hobby Tier)
-1. Commit this codebase to a GitHub repository.
-2. Sign in to Vercel and import the GitHub repository.
-3. Set the Root Directory to `frontend`.
-4. In the Environment Variables section in Vercel, add:
-   *   `NEXT_PUBLIC_API_URL` = `<Your Localtunnel URL>`
+### 3. Launch Development Environments
+We provide a unified orchestrator script that boots the FastAPI backend, Next.js frontend, and Localtunnel concurrent processes:
+```bash
+# From the project root
+python3 start_dev.py
+```
+*   **Web Portal**: `http://localhost:3000` (or `http://localhost:3001` if port 3000 is occupied).
+*   **Backend API Docs**: `http://localhost:8000/docs`.
 
-### Note on API Limits
-This demo utilizes the Groq Inference API for lightning-fast Llama-3 execution. Ensure you have your `GROQ_API_KEY` correctly set in the backend environment.
+---
+
+## 🛠️ Verification & Pipeline Testing
+
+A dedicated test suite is available to simulate patient report uploads:
+```bash
+# Test file uploads, SSE stream listening, quiz handling, and final matches:
+./backend/venv/bin/python test_invitae_pipeline.py
+```
+This script uploads the positive breast cancer sample report [Invitae - SR272_Invitae_Sample_Report_BRCA2_Positive.pdf](file:///home/dhruvi/OrphanLink/Invitae%20-%20SR272_Invitae_Sample_Report_BRCA2_Positive.pdf), responds to the missing age quiz, and prints the matched trials along with the personalized action plan.

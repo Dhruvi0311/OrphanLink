@@ -18,7 +18,7 @@ def get_evaluator_prompt(biomarkers: dict, trial_text: str, feedback: str = None
     2. DO NOT hallucinate criteria or patient data that is not explicitly written in the text.
     3. If the patient violates ANY explicitly stated exclusion criteria, or fails to meet an explicitly stated mandatory inclusion criteria, mark them as EXCLUDED.
     4. You must provide exact quotes from the text for your reasoning to prevent hallucinations.
-    5. Output ONLY a valid JSON object. Do not include any conversational filler or markdown formatting blocks.
+    5. Output ONLY a valid JSON object. Do not include any conversational filler, markdown formatting blocks (like ```json), or explanations outside the JSON object.
     
     Patient Data:
     {json.dumps(biomarkers, indent=2)}

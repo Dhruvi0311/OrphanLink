@@ -11,7 +11,7 @@ def get_validator_prompt(biomarkers: dict, trial_text: str) -> str:
     2. Base your decision SOLELY on the provided Patient Data and Trial Criteria.
     3. DO NOT hallucinate exclusions or infer conditions not explicitly stated.
     4. If the patient explicitly violates ANY hard exclusion, change the status to EXCLUDED. Otherwise, keep it MATCH.
-    5. Output ONLY a valid JSON object. Do not include any conversational filler or markdown formatting blocks.
+    5. Output ONLY a valid JSON object. Do not include any conversational filler, markdown formatting blocks (like ```json), or explanations outside the JSON object.
     
     Patient Data:
     {json.dumps(biomarkers, indent=2)}

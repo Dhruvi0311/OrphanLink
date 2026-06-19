@@ -20,6 +20,6 @@ def get_abstractor_prompt(report: str) -> str:
     
     Make sure to include any complex medical jargon or acronyms found in the extracted fields (mutations, therapies) into the glossary with simple, accurate explanations.
     
-    Patient Report:
+    Patient Report and Conversation History:
     {report}
     """
