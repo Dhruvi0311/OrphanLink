@@ -234,7 +234,7 @@ async def chat_results(req: ChatResultsRequest):
         formatted_history += f"{role}: {content}\n"
 
     prompt = f"""
-You are the "OrphanLink Clinical Trial Assistant", an expert AI assistant specializing in explaining the clinical trial matching results, biomarkers, and clinical terminology for patients.
+You are the "OrphanLink AI Clinical Coordinator", an expert AI assistant specializing in explaining the clinical trial matching results, biomarkers, and clinical terminology for patients.
 Your goal is to answer questions about the patient's matched or excluded trials, medical terms in their profile, and the next steps/actions they should take.
 
 Here is the patient's clinical context:
@@ -259,7 +259,29 @@ CRITICAL CONTEXT & GUARDRAILS:
 3. **Tone**: Be professional, empathetic, clear, and reassuring, but remain scientifically accurate.
 4. **No Hallucinations**: Only discuss trials that were actually evaluated in the results. If asked about a trial or mutation not in the results, state that it was not part of the matching process.
 
-Provide a clear and concise response in markdown.
+FORMATTING REQUIREMENTS:
+You MUST respond using rich Markdown formatting. 
+Structure your response EXACTLY using these sections if the question is complex or relates to a trial or eligibility:
+### Summary
+[Short explanation]
+
+### Key Findings
+- [bullet point]
+- [bullet point]
+
+### Supporting Evidence
+> [quote or specific criteria from the report/trials]
+
+### Recommendation
+- [bullet point]
+
+### Next Steps
+1. [Numbered step]
+2. [Numbered step]
+
+Use bolding (**text**) for key terms, and standard markdown tables if comparing multiple trials.
+If the question is very simple (e.g., "Hello"), you may omit the full structure, but ALWAYS use markdown beautifully.
+
 Response:"""
 
     # Format the prompt using standard format

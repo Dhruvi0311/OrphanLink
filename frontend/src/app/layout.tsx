@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import { Inter, Fira_Code } from "next/font/google";
 import "./globals.css";
-import { JudgeModeProvider } from "@/contexts/JudgeModeContext";
 import { Navbar } from "@/components/navbar";
 
 const inter = Inter({
@@ -27,12 +26,10 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={`${inter.variable} ${firaCode.variable} antialiased font-sans bg-slate-50/50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 min-h-screen flex flex-col transition-colors duration-300`}>
-        <JudgeModeProvider>
-          <Navbar />
-          <main className="flex-1 w-full max-w-[1600px] mx-auto p-4 md:p-8">
-            {children}
-          </main>
-        </JudgeModeProvider>
+        <Navbar />
+        <main className="flex-1 w-full max-w-[1600px] mx-auto p-4 md:p-8">
+          {children}
+        </main>
       </body>
     </html>
   );
