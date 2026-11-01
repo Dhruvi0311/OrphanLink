@@ -1,0 +1,32 @@
+CLINICAL ONCOLOGY CONSULTATION SUMMARY
+Department of Medical Oncology
+Patient: Sarah M.
+Age: 41
+Date of Consultation: November 02, 2023
+Oncologist: Dr. R. Mehta, MD
+
+CHIEF COMPLAINT:
+Follow-up oncology evaluation and clinical trial assessment for newly diagnosed triple-negative breast cancer.
+
+HISTORY OF PRESENT ILLNESS:
+The patient is a 41-year-old premenopausal female with recently diagnosed invasive ductal carcinoma of the left breast (triple-negative: ER 0%, PR 0%, HER2 IHC 0). 
+
+GENOMIC PROFILING & HEREDITARY CANCER TESTING:
+Comprehensive germline gene panel testing (Invitae Multi-Cancer Panel) identified:
+- Pathogenic variant in BRCA2 (c.3018del, p.Gly1007Valfs*36, heterozygous).
+- Negative for pathogenic mutations in BRCA1, PALB2, TP53, and PTEN.
+
+VERIFIED MEDICATION & CURRENT TREATMENT RECORDS:
+- Prescribed and actively initiated: Keytruda (pembrolizumab) 200 mg IV infusion every 3 weeks in the clinic.
+- Record verified: Hospital pharmacy administration log confirms cycle 1 administered on October 28, 2023.
+
+PATIENT-REPORTED TREATMENT HISTORY (REQUIRES VERIFICATION):
+- The patient reports receiving prior adjuvant chemotherapy regimens with carboplatin and paclitaxel at an outside community health clinic two years ago.
+- Note: Outside treatment summary and official medical records have not yet been received. These patient-reported therapies require clinical verification from the prior treating center before confirming eligibility for trials mandating documented prior lines of chemotherapy.
+
+ASSESSMENT & PLAN:
+1. Triple-negative breast cancer with confirmed germline BRCA2 pathogenic variant.
+2. Verified active immunotherapy: Keytruda (pembrolizumab).
+3. Patient-reported carboplatin and paclitaxel history pending outside record verification.
+4. Core biopsy pathological stage is unassigned; awaiting staging imaging to determine clinical TNM status.
+5. Screen for ClinicalTrials.gov precision oncology protocols accommodating BRCA alterations and TNBC.

@@ -30,6 +30,7 @@ class HybridDB:
         
         if os.path.exists(self.bm25_path):
             self.load_bm25()
+            self.deduplicate()
             
     def load_bm25(self):
         with open(self.bm25_path, "rb") as f:
@@ -46,22 +47,86 @@ class HybridDB:
                 "chunks": self.chunks_data
             }, f)
 
+    def deduplicate(self):
+        """
+        Deduplicates chunks by (nct_id, chunk_type) and rebuilds BM25 and ChromaDB.
+        """
+        if not self.chunks_data:
+            return
+            
+        unique_map = {}
+        for c in self.chunks_data:
+            key = f"{c.get('nct_id')}_{c.get('chunk_type', 'general')}"
+            if key not in unique_map:
+                c_copy = dict(c)
+                c_copy["doc_id"] = key
+                unique_map[key] = c_copy
+                
+        if len(unique_map) == len(self.chunks_data):
+            return # Already deduplicated
+            
+        deduped_chunks = list(unique_map.values())
+        old_count = len(self.chunks_data)
+        self.chunks_data = deduped_chunks
+        self.bm25_corpus = [c["text"].lower().split() for c in deduped_chunks]
+        self.bm25 = BM25Okapi(self.bm25_corpus)
+        self.save_bm25()
+        
+        # Reset ChromaDB collection with unique documents
+        try:
+            self.chroma_client.delete_collection(name="clinical_trials")
+        except Exception:
+            pass
+        self.collection = self.chroma_client.get_or_create_collection(name="clinical_trials")
+        
+        docs = [c["text"] for c in deduped_chunks]
+        metas = [{
+            "nct_id": c.get("nct_id", "UNKNOWN"),
+            "title": c.get("title", ""),
+            "chunk_type": c.get("chunk_type", "general")
+        } for c in deduped_chunks]
+        ids = [c["doc_id"] for c in deduped_chunks]
+        
+        self.collection.upsert(
+            documents=docs,
+            metadatas=metas,
+            ids=ids
+        )
+        print(f"HybridDB deduplicated from {old_count} to {len(deduped_chunks)} unique chunks.")
+
     def add_chunks(self, chunks: List[TrialChunk]):
         if not chunks:
+            return
+            
+        existing_keys = {
+            f"{c.get('nct_id')}_{c.get('chunk_type', 'general')}"
+            for c in self.chunks_data
+        }
+        
+        new_chunks = []
+        for chunk in chunks:
+            key = f"{chunk.nct_id}_{chunk.chunk_type}"
+            if key not in existing_keys:
+                existing_keys.add(key)
+                new_chunks.append(chunk)
+                
+        if not new_chunks:
             return
             
         ids = []
         documents = []
         metadatas = []
         
-        for chunk in chunks:
-            doc_id = str(uuid.uuid4())
+        for chunk in new_chunks:
+            doc_id = f"{chunk.nct_id}_{chunk.chunk_type}"
             ids.append(doc_id)
             documents.append(chunk.text)
             metadatas.append({
                 "nct_id": chunk.nct_id,
                 "title": chunk.title,
-                "chunk_type": chunk.chunk_type
+                "chunk_type": chunk.chunk_type,
+                "recruitment_status": chunk.recruitment_status or "UNKNOWN",
+                "has_indian_site": bool(chunk.has_indian_site)
             })
             
             # Prepare for BM25
@@ -83,7 +148,7 @@ class HybridDB:
         self.bm25 = BM25Okapi(self.bm25_corpus)
         self.save_bm25()
         
-        print(f"Added {len(chunks)} chunks to HybridDB.")
+        print(f"Added {len(new_chunks)} unique chunks to HybridDB.")
 
 if __name__ == "__main__":
     db = HybridDB()

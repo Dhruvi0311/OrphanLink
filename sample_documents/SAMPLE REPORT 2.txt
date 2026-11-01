@@ -1,0 +1,69 @@
+CLINICAL ONCOLOGY CONSULTATION REPORT
+Department of Medical Oncology - Precision Cancer Center
+Date of Consultation: October 24, 2024
+Patient Name: Priya Patel
+Medical Record Number: OL-2024-9182
+Age: 44
+Gender: Female
+Attending Oncologist: Dr. Vikram Joshi, MD, DM (Medical Oncology)
+
+CHIEF COMPLAINT:
+Follow-up oncology evaluation and clinical trial eligibility screening for pre-treated metastatic triple-negative breast cancer (mTNBC).
+
+HISTORY OF PRESENT ILLNESS:
+The patient is a 44-year-old premenopausal female diagnosed with recurrent metastatic triple-negative breast cancer. Core needle biopsy of the left breast tumor and ultrasound-guided core biopsy of the liver metastasis both confirmed invasive ductal carcinoma.
+
+TUMOR BIOMARKER & IMMUNOHISTOCHEMISTRY:
+- Estrogen Receptor (ER): Negative (0% nuclear staining)
+- Progesterone Receptor (PR): Negative (0% nuclear staining)
+- Human Epidermal Growth Factor Receptor 2 (HER2): Negative (IHC score 0; confirmed non-amplified)
+- Diagnosis: Histologically and pathologically confirmed Triple-Negative Breast Cancer (TNBC).
+
+GENOMIC PROFILING & HEREDITARY MUTATION TESTING:
+- Comprehensive Germline Genetic Panel (Invitae Hereditary Breast & Ovarian Cancer Panel):
+  * Pathogenic variant in BRCA1 identified: c.5266dupC (p.Gln1756Profs*74), heterozygous.
+  * Negative for pathogenic mutations in BRCA2, PALB2, TP53, PTEN, and CDH1.
+- Genetic Testing Status: Confirmed mutation detected (BRCA1 pathogenic variant).
+
+PERFORMANCE STATUS:
+- Eastern Cooperative Oncology Group (ECOG) Performance Status: 1
+- Patient is fully ambulatory, capable of all self-care, but restricted in physically strenuous activity.
+
+DISEASE BURDEN & RESTAGING IMAGING:
+- Contrast-enhanced CT scan of the chest, abdomen, and pelvis (October 10, 2024):
+  * Confirmed metastatic breast cancer with measurable soft-tissue distant metastases.
+  * Single measurable non-bone target lesion in Segment VII of the liver measuring 26 mm in longest axial diameter (RECIST 1.1 target lesion: 26 mm).
+  * Bone-only disease is absent (soft-tissue liver metastasis present).
+- Brain MRI with IV contrast: Negative for intracranial metastases or leptomeningeal disease.
+
+SYSTEMIC TREATMENT HISTORY (VERIFIED HOSPITAL RECORDS):
+- Setting: Metastatic setting.
+- Completed Prior Chemotherapy Regimens: 2 completed lines of systemic chemotherapy in the metastatic setting:
+  1. Line 1: Gemcitabine + Carboplatin doublet (completed 5 months prior to consultation).
+  2. Line 2: Nab-Paclitaxel with Pembrolizumab (completed 6 weeks prior to consultation).
+- Regimen Count: Exactly 2 prior chemotherapy regimens received in the metastatic setting.
+- Treatment Timing / Washout: Most recent systemic anti-cancer therapy completed 6 weeks prior to assessment (exceeding the required 3-week / 21-day washout period; no cancer investigational agent received within 21 days).
+- Prior Surgical History: No major surgery within 4 weeks.
+
+LABORATORY & ORGAN FUNCTION ASSESSMENT (DOCUMENTED WITHIN 7 DAYS):
+- Hematologic Function:
+  * Absolute Neutrophil Count (ANC): 2.4 x 10^9/L (Normal; reference >= 1.5 x 10^9/L)
+  * Platelet count: 185 x 10^9/L (Normal; reference >= 100 x 10^9/L)
+  * Hemoglobin: 11.4 g/dL (Normal; reference >= 9.0 g/dL)
+- Hepatic Function:
+  * Total Bilirubin: 0.8 mg/dL (Normal; reference <= 1.5 x ULN)
+  * AST (SGOT): 28 U/L (Within normal limits)
+  * ALT (SGPT): 32 U/L (Within normal limits)
+- Renal Function:
+  * Serum Creatinine: 0.8 mg/dL (Normal; calculated CrCl > 60 mL/min)
+- Summary: Patient has documented adequate bone marrow, liver, and renal function.
+
+ASSESSMENT & CLINICAL TRIAL PROTOCOL MATCHING:
+1. 44-year-old female with histologically confirmed metastatic triple-negative breast cancer (ER 0%, PR 0%, HER2 0).
+2. Confirmed germline BRCA1 pathogenic mutation.
+3. Measurable soft-tissue liver lesion (RECIST 1.1: 26 mm).
+4. ECOG performance status 1.
+5. Exactly 2 prior chemotherapy regimens in the metastatic setting.
+6. 6-week washout period completed; no cancer therapy within 21 days.
+7. Documented adequate bone marrow, liver, and renal function.
+8. Protocol Screening: Patient is recommended for precision oncology trial enrollment under ClinicalTrials.gov Protocol NCT06189209 ("Efficacy and Safety of Tenalisib in Patients With Metastatic Triple Negative Breast Cancer"), with active participating recruitment sites in India including Tata Memorial Centre (Mumbai), Narayana Hrudayalaya (Bangalore), Sahyadri Hospital (Pune), and HCG City Cancer Center (Vijayawada).

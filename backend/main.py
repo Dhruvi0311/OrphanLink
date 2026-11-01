@@ -27,19 +27,27 @@ app.add_middleware(
 jobs = {}
 graph = build_graph()
 
-async def run_langgraph(job_id: str, state: dict):
+def run_langgraph_worker(job_id: str, state: dict, loop: asyncio.AbstractEventLoop):
     jobs[job_id]["status"] = "running"
+    queue = jobs[job_id]["queue"]
     
+    def put_msg(msg):
+        loop.call_soon_threadsafe(queue.put_nowait, msg)
+        
     try:
-        # graph.stream executes the state machine
+        # graph.stream executes the state machine in a worker thread
         for output in graph.stream(state):
             for node_name, updated_state in output.items():
                 new_logs = updated_state.get("logs", [])
                 
+                # Emit intermediate biomarkers immediately for instant UI rendering
+                if node_name == "abstractor" and updated_state.get("extracted_biomarkers"):
+                    put_msg(f"[INTERMEDIATE_BIOMARKERS] {json.dumps(updated_state['extracted_biomarkers'])}")
+
                 # Find new logs since last step
                 current_logs_len = jobs[job_id].get("logs_len", 0)
                 for log in new_logs[current_logs_len:]:
-                    await jobs[job_id]["queue"].put(log)
+                    put_msg(log)
                     
                 jobs[job_id]["logs_len"] = len(new_logs)
                 jobs[job_id]["state"] = updated_state
@@ -47,30 +55,54 @@ async def run_langgraph(job_id: str, state: dict):
         # Check if we ended early due to quiz
         final_state = jobs[job_id].get("state", {})
         if final_state.get("quiz_questions") and not final_state.get("quiz_answers"):
-            await jobs[job_id]["queue"].put("[QUIZ_REQUIRED]")
+            put_msg("[QUIZ_REQUIRED]")
             jobs[job_id]["status"] = "waiting_for_input"
         else:
-            await jobs[job_id]["queue"].put("[DONE]")
+            put_msg("[DONE]")
             jobs[job_id]["status"] = "completed"
             
     except Exception as e:
-        await jobs[job_id]["queue"].put(f"[ERROR] {str(e)}")
+        put_msg(f"[ERROR] {str(e)}")
         jobs[job_id]["status"] = "failed"
 
+async def run_langgraph(job_id: str, state: dict):
+    loop = asyncio.get_running_loop()
+    await asyncio.to_thread(run_langgraph_worker, job_id, state, loop)
+
 @app.post("/upload")
-async def upload_file(background_tasks: BackgroundTasks, file: UploadFile = File(...)):
-    contents = await file.read()
+async def upload_file(
+    background_tasks: BackgroundTasks, 
+    files: Optional[List[UploadFile]] = File(None),
+    file: Optional[UploadFile] = File(None)
+):
+    upload_list = []
+    if files:
+        upload_list.extend(files)
+    if file:
+        upload_list.append(file)
+        
+    if not upload_list:
+        return {"error": "No files uploaded"}
+        
+    doc_sections = []
+    source_documents = []
     
-    # Parse file using robust parser
-    text = parse_file(contents, file.filename)
+    for up_file in upload_list:
+        contents = await up_file.read()
+        parsed_text = parse_file(contents, up_file.filename)
+        doc_name = up_file.filename
+        source_documents.append(doc_name)
+        doc_sections.append(f"=== Document: {doc_name} ===\n{parsed_text}")
+        
+    combined_report = "\n\n".join(doc_sections)
         
     job_id = str(uuid.uuid4())
     jobs[job_id] = {
         "status": "pending",
         "queue": asyncio.Queue(),
-        "logs": [],
+        "logs": [f"> SYSTEM: Ingested {len(source_documents)} documents: {', '.join(source_documents)}"],
         "state": {
-            "patient_report": text,
+            "patient_report": combined_report,
             "chat_history": [],
             "extracted_biomarkers": None,
             "quiz_questions": None,
@@ -78,14 +110,14 @@ async def upload_file(background_tasks: BackgroundTasks, file: UploadFile = File
             "retrieved_trials": [],
             "evaluation_results": [],
             "task_list": None,
-            "logs": []
+            "logs": [f"> SYSTEM: Aggregating facts across documents: {', '.join(source_documents)}"]
         }
     }
     
     # Fire off the LangGraph background task
     background_tasks.add_task(run_langgraph, job_id, jobs[job_id]["state"])
     
-    return {"job_id": job_id}
+    return {"job_id": job_id, "documents": source_documents}
 
 class QuizSubmission(BaseModel):
     job_id: str
@@ -189,11 +221,15 @@ class ChatResultsRequest(BaseModel):
 async def chat_results(req: ChatResultsRequest):
     biomarkers_summary = ""
     if req.biomarkers:
+        condition = req.biomarkers.get("condition_or_cancer_type") or "Not specified"
+        stage = req.biomarkers.get("cancer_stage") or "Not specified"
         age = req.biomarkers.get("age", "Unknown")
         mutations = ", ".join(req.biomarkers.get("active_mutations", [])) or "None"
         therapies = ", ".join(req.biomarkers.get("past_therapies", [])) or "None"
         glossary = json.dumps(req.biomarkers.get("medical_terms_glossary", {}), indent=2)
         biomarkers_summary = (
+            f"Condition / Cancer Type: {condition}\n"
+            f"Cancer Stage: {stage}\n"
             f"Patient Age: {age}\n"
             f"Active Mutations / Biomarkers: {mutations}\n"
             f"Past / Current Therapies: {therapies}\n"
@@ -313,7 +349,12 @@ async def stream_logs(job_id: str):
         queue = jobs[job_id]["queue"]
         
         while True:
-            log = await queue.get()
+            try:
+                log = await asyncio.wait_for(queue.get(), timeout=15.0)
+            except asyncio.TimeoutError:
+                yield ": keepalive\n\n"
+                continue
+
             if log == "[DONE]":
                 state = jobs[job_id]["state"]
                 yield f"data: {json.dumps({'event': 'completed', 'state': state})}\n\n"
@@ -322,6 +363,13 @@ async def stream_logs(job_id: str):
                 state = jobs[job_id]["state"]
                 yield f"data: {json.dumps({'event': 'quiz_required', 'questions': state['quiz_questions'], 'biomarkers': state['extracted_biomarkers']})}\n\n"
                 break
+            elif log.startswith("[INTERMEDIATE_BIOMARKERS] "):
+                bio_str = log[len("[INTERMEDIATE_BIOMARKERS] "):]
+                try:
+                    bio_data = json.loads(bio_str)
+                    yield f"data: {json.dumps({'event': 'intermediate_biomarkers', 'biomarkers': bio_data})}\n\n"
+                except Exception:
+                    pass
             elif log.startswith("[ERROR]"):
                 yield f"data: {json.dumps({'event': 'error', 'message': log})}\n\n"
                 break

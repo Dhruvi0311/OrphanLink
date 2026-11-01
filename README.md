@@ -195,4 +195,4 @@ Right now, clinicians are severely bottlenecked; they simply do not have the bil
 
 However, the interface is intentionally patient-centric. We designed features like the plain-English intake chatbot and the personalized action checklists specifically so the platform can interact directly with the patient to gather missing information, like age or prior treatments, before it hits the doctor's desk.
 
-So, we empower the clinician with zero-hallucination medical matching, while giving the patient an accessible, guided experience."
+So, we empower the clinician with zero-hallucination medical matching, while giving the patient an accessible, guided experience."Progress Meter: Dynamically advanced to 60% (3/5 Captured).

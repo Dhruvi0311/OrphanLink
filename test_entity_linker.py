@@ -1,5 +1,9 @@
+import os
+import sys
 import json
 import logging
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "backend"))
 from agent_orchestrator import build_graph
 
 # Configure logging

@@ -31,7 +31,6 @@ export function Navbar() {
             <span className="text-xl font-bold tracking-tight text-slate-900 dark:text-white">
               OrphanLink
             </span>
-            <span className="w-2 h-2 rounded-full bg-emerald-500 mt-1 shadow-[0_0_8px_rgba(16,185,129,0.8)]"></span>
           </Link>
           <nav className="hidden md:flex items-center gap-6 text-sm font-medium text-slate-600 dark:text-slate-400">
             <Link href="/about" className="hover:text-slate-900 dark:hover:text-white transition-colors">

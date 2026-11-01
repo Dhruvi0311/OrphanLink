@@ -1,0 +1,31 @@
+SURGICAL PATHOLOGY & HISTOPATHOLOGY REPORT
+Hospital / Pathology Center: Metropolitan Comprehensive Cancer Center
+Patient Name: Sarah M.
+Date of Birth: 04/12/1982 (Age: 41)
+Date of Procedure: October 14, 2023
+Accession #: SP-2023-89412
+
+CLINICAL HISTORY:
+41-year-old female presenting with a 2.4 cm palpable mass in the upper outer quadrant of the left breast. Core needle biopsy performed under ultrasound guidance.
+
+SPECIMEN SUBMITTED:
+Specimen A: Left breast mass, ultrasound-guided core needle biopsy.
+
+DIAGNOSIS:
+INVASIVE DUCTAL CARCINOMA OF THE BREAST.
+- Histologic Type: Invasive ductal carcinoma (no special type).
+- Histologic Grade: Nottingham Grade 3 (Tubule formation: 3, Nuclear pleomorphism: 3, Mitotic score: 3; Total score 9/9).
+- Lymphovascular Invasion: Not identified in biopsy material.
+- In Situ Carcinoma: High-grade DCIS present, solid pattern with comedo necrosis.
+
+BIOMARKER & IMMUNOHISTOCHEMISTRY (IHC) RESULTS:
+- Estrogen Receptor (ER): NEGATIVE (0% nuclear staining).
+- Progesterone Receptor (PR): NEGATIVE (0% nuclear staining).
+- HER2/neu (IHC): NEGATIVE (Score 0, no membrane staining).
+- Ki-67 Proliferation Index: Elevated, approximately 65%.
+
+CLASSIFICATION:
+Triple-Negative Breast Cancer (TNBC).
+
+PATHOLOGICAL STAGING NOTE:
+Pathological stage is not assigned from the core biopsy alone. Definitive pathological staging (pT, pN, pM) requires surgical excision, axillary sentinel lymph node evaluation, and systemic imaging. Systemic distant metastatic status is not evaluated or assigned from this local biopsy specimen.

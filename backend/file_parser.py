@@ -30,13 +30,35 @@ def parse_file(file_bytes: bytes, filename: str) -> str:
             for page in doc:
                 text += page.get_text()
             
-            # If text is too short, it might be a scanned PDF
+            # If text is too short, it is a scanned or image-based PDF
             if len(text.strip()) < 50:
-                print("PDF text too short, falling back to OCR...")
-                text = ""
-                images = convert_from_bytes(file_bytes)
-                for image in images:
-                    text += pytesseract.image_to_string(image) + "\n"
+                print("PDF native text too short, falling back to OCR...")
+                ocr_text_parts = []
+                # Use PyMuPDF page pixmap rendering (requires no poppler!)
+                for page_idx in range(len(doc)):
+                    page = doc[page_idx]
+                    pix = page.get_pixmap()
+                    img_bytes = pix.tobytes()
+                    img = Image.open(io.BytesIO(img_bytes))
+                    
+                    # 1. Try RapidOCR (runs locally with onnxruntime)
+                    try:
+                        from rapidocr_onnxruntime import RapidOCR
+                        rapid_ocr = RapidOCR()
+                        ocr_res, _ = rapid_ocr(img_bytes)
+                        if ocr_res:
+                            page_text = "\n".join([line[1] for line in ocr_res])
+                            ocr_text_parts.append(page_text)
+                    except Exception as ocr_err:
+                        print(f"RapidOCR attempt failed: {ocr_err}")
+                        # 2. Fall back to pytesseract if installed
+                        try:
+                            tess_text = pytesseract.image_to_string(img)
+                            if tess_text.strip():
+                                ocr_text_parts.append(tess_text)
+                        except Exception:
+                            pass
+                text = "\n".join(ocr_text_parts)
                     
             return text.strip()[:7500] # Truncate to prevent token limit errors
         except Exception as e:

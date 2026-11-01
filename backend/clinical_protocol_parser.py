@@ -6,8 +6,12 @@ from pydantic import BaseModel
 class TrialChunk(BaseModel):
     nct_id: str
     title: str
-    chunk_type: str  # 'inclusion' or 'exclusion'
+    chunk_type: str  # 'inclusion', 'exclusion', 'general'
     text: str
+    recruitment_status: Optional[str] = "UNKNOWN"
+    locations: Optional[List[str]] = []
+    has_indian_site: Optional[bool] = False
+    countries: Optional[List[str]] = []
 
 class ClinicalProtocolParser:
     """

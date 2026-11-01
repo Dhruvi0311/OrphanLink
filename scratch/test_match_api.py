@@ -1,0 +1,78 @@
+import requests
+import json
+import time
+
+report_text = """CLINICAL ONCOLOGY CONSULTATION REPORT
+Department of Medical Oncology - Precision Cancer Care
+Date of Assessment: October 24, 2024
+Patient Name: Priya Patel
+Age: 44
+Gender: Female
+Primary Diagnosis: Metastatic Triple-Negative Breast Cancer (mTNBC)
+Histopathology: Invasive ductal carcinoma of the breast, Grade 3
+Receptor Biomarkers:
+- Estrogen Receptor (ER): Negative (0% nuclear staining)
+- Progesterone Receptor (PR): Negative (0% nuclear staining)
+- HER2/neu: Negative (IHC score 0)
+Genomic Profiling:
+- Germline Genetic Testing: Confirmed BRCA1 pathogenic mutation (c.5266dupC) detected
+- Homologous Recombination Deficiency (HRD): Positive
+Performance Status:
+- ECOG Performance Status: 1 (Ambulatory, capable of self-care, restricted in strenuous physical activity)
+Disease Burden & Imaging:
+- Metastatic disease confirmed on CT scan with measurable target lesion in the liver (RECIST 1.1 single measurable hepatic lesion measuring 26 mm in segment VII)
+- No central nervous system or symptomatic bone metastases
+Treatment History & Prior Therapies:
+- Setting: Metastatic disease setting
+- Prior Chemotherapy Regimens: Completed 2 prior lines of chemotherapy in the metastatic setting:
+  1. First-line: Gemcitabine and Carboplatin doublet (completed 5 months ago)
+  2. Second-line: Nab-paclitaxel with Pembrolizumab (completed 6 weeks prior to consultation)
+- Treatment-free interval: Greater than 4 weeks since last systemic therapy
+Laboratory & Organ Function:
+- Absolute Neutrophil Count (ANC): 2.4 x 10^9/L (Normal)
+- Platelet count: 185 x 10^9/L (Normal)
+- Hemoglobin: 11.2 g/dL (Normal)
+- Total Bilirubin: 0.9 mg/dL (Normal)
+- AST / ALT: Within 1.5x upper limit of normal
+- Serum Creatinine: 0.8 mg/dL (Normal renal clearance)
+Assessment:
+Patient is a 44-year-old female with metastatic TNBC, confirmed germline BRCA1 mutation, measurable hepatic metastasis, ECOG 1, who has received 2 prior systemic chemotherapy regimens and is seeking precision oncology clinical trial enrollment.
+"""
+
+with open('sample_documents/sample_matched_patient_report.txt', 'w', encoding='utf-8') as f:
+    f.write(report_text)
+
+files = {'file': ('sample_matched_patient_report.txt', report_text.encode('utf-8'), 'text/plain')}
+res = requests.post('http://127.0.0.1:8000/upload', files=files)
+data = res.json()
+job_id = data.get('job_id')
+print('Uploaded! Job ID:', job_id)
+
+stream_url = f'http://127.0.0.1:8000/stream/{job_id}'
+resp = requests.get(stream_url, stream=True, timeout=120)
+for line in resp.iter_lines():
+    if line:
+        decoded = line.decode('utf-8')
+        if 'data:' in decoded:
+            raw_json = decoded[len('data:'):].strip()
+            try:
+                payload = json.loads(raw_json)
+                evt = payload.get('event')
+                if evt:
+                    print('Event received:', evt)
+                if evt == 'completed':
+                    state = payload.get('state', {})
+                    results = state.get('evaluation_results', [])
+                    print(f'Total Evaluated Trials: {len(results)}')
+                    for r in results:
+                        t = r['trial']
+                        ev = r['evaluation']
+                        print(f"=== Trial: {t.get('nct_id')} | Status: {ev.get('status')} ===")
+                        print(f"Title: {t.get('title')}")
+                        print(f"Reason: {ev.get('reason')}")
+                    break
+                elif evt == 'quiz_required':
+                    print('Quiz questions generated:', payload.get('questions'))
+                    break
+            except Exception as e:
+                pass
